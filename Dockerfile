@@ -1,5 +1,6 @@
 # Use the Python version mentioned in the environment setup
 FROM python:3.10-slim
+ARG CACHEBUST=$(date +%s)
 
 WORKDIR /app
 

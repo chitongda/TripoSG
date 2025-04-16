@@ -33,6 +33,7 @@ COPY triposg ./triposg
 COPY scripts ./scripts
 COPY assets ./assets # If default assets are needed by the API
 # Add api.py once created
+RUN ls -l api.py
 COPY api.py .
 
 # Create the output directory referenced in the script

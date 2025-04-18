@@ -162,7 +162,8 @@ WORKDIR /app
 COPY . .
 
 # Install Python dependencies
-RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+ENV CUDA_HOME=/usr/local/cuda
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 RUN pip install -r requirements.txt
 
 # Install additional dependencies

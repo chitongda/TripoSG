@@ -94,7 +94,8 @@ RUN . ~/.bashrc && \
 SHELL ["conda", "run", "-n", "triposg_env", "/bin/bash", "-c"]
 
 # Update pip and setuptools first
-RUN pip install --upgrade pip setuptools wheel
+RUN python -m ensurepip --upgrade
+RUN python -m pip install --upgrade setuptools
 
 # Verify conda environment activation
 RUN echo "Conda environment:" && \

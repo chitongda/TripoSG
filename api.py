@@ -286,7 +286,7 @@ async def get_task_result(task_id: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=7861)
+    parser.add_argument("--port", type=int, default=7860)
     args = parser.parse_args()
 
     # Determine device based on availability

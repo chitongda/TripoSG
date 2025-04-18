@@ -61,21 +61,22 @@ ENV NVIDIA_PRODUCT_NAME="CUDA"
 ENTRYPOINT ["/opt/nvidia/nvidia_entrypoint.sh"]
 
 # Install Miniconda
-ARG MINICONDA_VERSION=latest
-RUN case ${TARGETARCH} in \
-      amd64) ARCH=x86_64 ;; \
-      arm64) ARCH=aarch64 ;; \
-      *) echo "Unsupported architecture: ${TARGETARCH}"; exit 1 ;; \
-    esac && \
-    wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-${ARCH}.sh -O miniconda.sh && \
-    /bin/bash miniconda.sh -b -p /opt/conda && \
-    rm miniconda.sh && \
-    # Add conda to PATH for subsequent RUN instructions in this build stage \
-    echo 'export PATH=/opt/conda/bin:$PATH' >> /etc/profile.d/conda.sh && \
-    # Initialize conda for bash shells (modifies ~/.bashrc) \
-    /opt/conda/bin/conda init bash && \
-    # Clean up installation artifacts \
-    /opt/conda/bin/conda clean -tipsy
+A# Install Miniconda on x86 or ARM platforms
+RUN arch=$(uname -m) && \
+    if [ "$arch" = "x86_64" ]; then \
+    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"; \
+    elif [ "$arch" = "aarch64" ]; then \
+    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh"; \
+    else \
+    echo "Unsupported architecture: $arch"; \
+    exit 1; \
+    fi && \
+    wget $MINICONDA_URL -O miniconda.sh && \
+    mkdir -p /root/.conda && \
+    bash miniconda.sh -b -p /root/miniconda3 && \
+    rm -f miniconda.sh
+
+RUN conda --version
 
 # Set PATH environment variable for the final container environment
 ENV PATH=/opt/conda/bin:$PATH

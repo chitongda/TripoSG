@@ -60,6 +60,9 @@ COPY nvidia_entrypoint.sh /opt/nvidia/
 ENV NVIDIA_PRODUCT_NAME="CUDA"
 ENTRYPOINT ["/opt/nvidia/nvidia_entrypoint.sh"]
 
+ENV PATH="/root/miniconda3/bin:${PATH}"
+ARG PATH="/root/miniconda3/bin:${PATH}"
+
 # Install Miniconda
 # Install Miniconda on x86 or ARM platforms
 RUN arch=$(uname -m) && \

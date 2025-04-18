@@ -62,9 +62,7 @@ ENTRYPOINT ["/opt/nvidia/nvidia_entrypoint.sh"]
 
 # Install Miniconda
 ARG MINICONDA_VERSION=latest
-ARG MINICONDA_SHA256=957d251757485931709f783d3a34e82750e5071638717c469f91a4069b482760
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh -O miniconda.sh && \
-    echo "${MINICONDA_SHA256} miniconda.sh" | sha256sum -c && \
     bash miniconda.sh -b -p /opt/conda && \
     rm miniconda.sh && \
     /opt/conda/bin/conda clean -tipsy && \

@@ -62,21 +62,26 @@ ENTRYPOINT ["/opt/nvidia/nvidia_entrypoint.sh"]
 
 # Install Miniconda
 ARG MINICONDA_VERSION=latest
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh -O miniconda.sh && \
-    bash miniconda.sh -b -p /opt/conda && \
-    rm miniconda.sh && \
-    /opt/conda/bin/conda clean -tipsy && \
-    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
-    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh -O miniconda.sh && \\
+    /bin/bash miniconda.sh -b -p /opt/conda && \\
+    rm miniconda.sh && \\
+    # Add conda to PATH for subsequent RUN instructions in this build stage
+    echo 'export PATH=/opt/conda/bin:$PATH' >> /etc/profile.d/conda.sh && \\
+    # Initialize conda for bash shells (modifies ~/.bashrc)
+    /opt/conda/bin/conda init bash && \\
+    # Clean up installation artifacts
+    /opt/conda/bin/conda clean -tipsy
 
-# Set PATH environment variable
+# Set PATH environment variable for the final container environment
 ENV PATH=/opt/conda/bin:$PATH
 
 # Create and activate Conda environment
-RUN conda create -y --name triposg_env python=3.12 && \
+# Need to source bashrc here to make conda command available after init
+RUN . ~/.bashrc && \\
+    conda create -y --name triposg_env python=3.12 && \\
     conda clean -afy
 
-# Set the default shell to bash and activate the conda environment
+# Set the default shell to bash and activate the conda environment for subsequent RUN commands
 SHELL ["conda", "run", "-n", "triposg_env", "/bin/bash", "-c"]
 
 # Verify conda environment activation

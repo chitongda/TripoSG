@@ -6,10 +6,12 @@ import torch
 import numpy as np
 import trimesh
 from PIL import Image
-from typing import Any, Union
-import io  # Added for BytesIO
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
-from fastapi.responses import FileResponse
+import typing as T # Use typing alias
+import io
+import uuid # Added for task IDs
+import asyncio # Added for background tasks
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, BackgroundTasks
+from fastapi.responses import FileResponse, JSONResponse
 from starlette.background import BackgroundTask # Correct import for BackgroundTask
 import uvicorn
 
@@ -24,6 +26,114 @@ sys.path.append(project_root)
 from triposg.pipelines.pipeline_triposg import TripoSGPipeline
 from image_process import prepare_image # Assuming image_process.py is in scripts/
 from briarmbg import BriaRMBG
+
+# Global variables for models and task statuses
+pipe: T.Optional[TripoSGPipeline] = None
+rmbg_net: T.Optional[BriaRMBG] = None
+task_statuses: T.Dict[str, T.Dict[str, T.Any]] = {} # Stores task status and results
+
+# --- Model Loading ---
+def load_models():
+    """Loads the TripoSR and RMBG models."""
+    global pipe, rmbg_net
+    print("Loading models...")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    dtype = torch.float16 if device == "cuda" else torch.float32
+
+    try:
+        pipe = TripoSGPipeline.from_pretrained(
+            "stabilityai/TripoSR",
+            torch_dtype=dtype,
+        )
+        pipe.to(device)
+        pipe.unet.to(memory_format=torch.channels_last)
+        print("TripoSR model loaded.")
+
+        model_path = os.path.join(project_root, 'models', 'briarmbg-1.4.onnx') # Use relative path
+        if not os.path.exists(model_path):
+             raise FileNotFoundError(f"RMBG model not found at {model_path}. Please download it.")
+        rmbg_net = BriaRMBG(onnx_path=model_path)
+        print("RMBG model loaded.")
+
+    except ImportError as e:
+        print(f"Error loading models: {e}. Please ensure all dependencies are installed.")
+        raise RuntimeError(f"Failed to import necessary libraries: {e}") from e
+    except FileNotFoundError as e:
+         print(f"Model file error: {e}")
+         raise RuntimeError(f"Model file error: {e}") from e
+    except Exception as e:
+        print(f"An unexpected error occurred during model loading: {e}")
+        raise RuntimeError(f"Model loading failed: {e}") from e
+
+# --- FastAPI App ---
+app = FastAPI()
+
+@app.on_event("startup")
+async def startup_event():
+    """Load models when the application starts."""
+    load_models()
+
+# --- Helper Functions ---
+
+def cleanup_temp_file(temp_file_path: str):
+    """Safely removes a temporary file."""
+    try:
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+            print(f"Cleaned up temporary file: {temp_file_path}")
+        else:
+            print(f"Temporary file already removed: {temp_file_path}")
+    except OSError as e:
+        print(f"Error cleaning up temporary file {temp_file_path}: {e}")
+
+async def _run_generation_task(
+    task_id: str,
+    image_contents: bytes,
+    seed: int,
+    num_inference_steps: int,
+    guidance_scale: float,
+):
+    """The actual generation process, run in the background."""
+    output_path = None
+    try:
+        task_statuses[task_id] = {"status": "running"}
+        print(f"Task {task_id}: Starting generation.")
+
+        pil_image = Image.open(io.BytesIO(image_contents))
+
+        # Run inference (ensure run_inference is defined or integrate logic here)
+        mesh = run_inference( # Assuming run_inference accesses global pipe/rmbg_net
+            image_input=pil_image,
+            seed=seed,
+            num_inference_steps=num_inference_steps,
+            guidance_scale=guidance_scale,
+        )
+
+        # Save mesh to a temporary file
+        with tempfile.NamedTemporaryFile(suffix=".glb", delete=False) as tmp_file:
+            output_path = tmp_file.name
+            print(f"Task {task_id}: Saving mesh to {output_path}")
+            mesh.export(output_path)
+
+        # Update status to completed
+        task_statuses[task_id] = {"status": "completed", "result_path": output_path}
+        print(f"Task {task_id}: Completed successfully.")
+
+    except FileNotFoundError as e:
+        print(f"Task {task_id}: Error - {e}")
+        task_statuses[task_id] = {"status": "failed", "error": str(e)}
+        if output_path: cleanup_temp_file(output_path)
+    except RuntimeError as e:
+        print(f"Task {task_id}: Runtime Error - {e}")
+        task_statuses[task_id] = {"status": "failed", "error": f"Model inference error: {e}"}
+        if output_path: cleanup_temp_file(output_path)
+    except Exception as e:
+        print(f"Task {task_id}: Unexpected Error - {e}")
+        import traceback
+        traceback.print_exc()
+        task_statuses[task_id] = {"status": "failed", "error": f"An unexpected error occurred: {e}"}
+        if output_path: cleanup_temp_file(output_path)
+
 
 def run_inference(
     image_input: Image.Image,
@@ -65,68 +175,99 @@ def run_inference(
     print("Mesh created.")
     return mesh
 
-async def generate_model(
+# --- API Endpoints ---
+
+@app.post("/generate/", status_code=202) # Use 202 Accepted for async tasks
+async def start_generation(
+    background_tasks: BackgroundTasks, # Use BackgroundTasks for dependency injection
     image: UploadFile = File(..., description="Input image file"),
     seed: int = Form(42, description="Random seed for generation"),
     num_inference_steps: int = Form(50, description="Number of inference steps", ge=1),
     guidance_scale: float = Form(7.0, description="Guidance scale", ge=0.0)
 ):
-    # Define cleanup task function
-    def cleanup(temp_file_path):
-        try:
-            os.remove(temp_file_path)
-            print(f"Cleaned up temporary file: {temp_file_path}")
-        except OSError as e:
-            print(f"Error cleaning up temporary file {temp_file_path}: {e}")
+    """
+    Accepts an image and parameters, starts the 3D model generation task
+    in the background, and returns a task ID.
+    """
+    if pipe is None or rmbg_net is None:
+         # This check might be redundant if startup guarantees loading, but good practice
+         raise HTTPException(status_code=503, detail="Models are not loaded or still loading.")
 
-    output_path = None # Initialize output_path
+    task_id = str(uuid.uuid4())
+    print(f"Received generation request, assigning Task ID: {task_id}")
+
+    # Read image content immediately
     try:
-        print(f"Received request for image: {image.filename}")
-        # Read image
-        contents = await image.read()
-        pil_image = Image.open(io.BytesIO(contents))
-
-        # Run inference
-        mesh = run_inference(
-            image_input=pil_image,
-            seed=seed,
-            num_inference_steps=num_inference_steps,
-            guidance_scale=guidance_scale,
-        )
-
-        # Save mesh to a temporary file
-        # Using 'with' ensures the file handle is closed, but delete=False keeps the file
-        with tempfile.NamedTemporaryFile(suffix=".glb", delete=False) as tmp_file:
-            output_path = tmp_file.name # Store the path for cleanup
-            print(f"Saving mesh to temporary file: {output_path}")
-            mesh.export(output_path) # Export requires the file path
-
-
-        # Return the file and schedule it for deletion after sending
-        return FileResponse(
-             output_path,
-             media_type='model/gltf-binary',
-             filename='output.glb',
-             background=BackgroundTask(cleanup, output_path) # Pass path to cleanup task
-        )
-
-    except FileNotFoundError as e:
-         print(f"Error: {e}")
-         if output_path: # Attempt cleanup even if error occurred after file creation
-             cleanup(output_path)
-         raise HTTPException(status_code=500, detail=str(e))
-    except RuntimeError as e:
-         print(f"Runtime Error: {e}")
-         if output_path:
-             cleanup(output_path)
-         raise HTTPException(status_code=500, detail=f"Model inference error: {e}")
+        image_contents = await image.read()
+        # Quick validation if it's an image (optional, PIL will raise later if not)
+        _ = Image.open(io.BytesIO(image_contents))
     except Exception as e:
-        print(f"Unexpected Error: {e}")
-        import traceback
-        traceback.print_exc()
-        if output_path:
-             cleanup(output_path)
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid image file: {e}")
+    finally:
+        await image.close() # Ensure file handle is closed
+
+    # Store initial status
+    task_statuses[task_id] = {"status": "pending"}
+
+    # Add the generation task to run in the background
+    background_tasks.add_task(
+        _run_generation_task,
+        task_id,
+        image_contents,
+        seed,
+        num_inference_steps,
+        guidance_scale,
+    )
+
+    return {"task_id": task_id, "status": "pending"}
+
+@app.get("/status/{task_id}")
+async def get_task_status(task_id: str):
+    """
+    Retrieves the status of a generation task by its ID.
+    Possible statuses: pending, running, completed, failed.
+    If failed, an 'error' field will be present.
+    """
+    status_info = task_statuses.get(task_id)
+    if not status_info:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return status_info
+
+@app.get("/result/{task_id}")
+async def get_task_result(task_id: str):
+    """
+    Retrieves the generated 3D model (.glb file) for a completed task.
+    Deletes the temporary file after sending the response.
+    """
+    status_info = task_statuses.get(task_id)
+    if not status_info:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if status_info["status"] == "pending" or status_info["status"] == "running":
+        raise HTTPException(status_code=400, detail=f"Task is still {status_info['status']}")
+    elif status_info["status"] == "failed":
+        raise HTTPException(status_code=500, detail=f"Task failed: {status_info.get('error', 'Unknown error')}")
+    elif status_info["status"] == "completed":
+        result_path = status_info.get("result_path")
+        if not result_path or not os.path.exists(result_path):
+             # Handle case where path is missing or file got deleted somehow
+             print(f"Error: Result file path missing or file not found for task {task_id}")
+             task_statuses[task_id] = {"status": "failed", "error": "Result file not found."} # Update status
+             raise HTTPException(status_code=500, detail="Result file not found.")
+
+        # Return the file and schedule cleanup
+        return FileResponse(
+             result_path,
+             media_type='model/gltf-binary',
+             filename=f'{task_id}_output.glb', # Use task_id in filename
+             background=BackgroundTask(cleanup_temp_file, result_path) # Use the helper
+        )
+    else:
+        # Should not happen with defined statuses
+        raise HTTPException(status_code=500, detail="Unknown task status")
+
+# Remove the old generate_model function if it exists (it's replaced by start_generation)
+# The original generate_model logic is now in _run_generation_task
 
 # --- Main Execution ---
 # For running directly with `python api.py` (optional)
@@ -140,7 +281,7 @@ if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float16 if device == "cuda" else torch.float32
 
-    print("Starting API...")
+    print("Starting API service...") # Changed message slightly
     # Models are loaded via the @app.on_event("startup") decorator when run with uvicorn
 
     uvicorn.run("api:app", host=args.host, port=args.port, reload=False) # Use string format for app 

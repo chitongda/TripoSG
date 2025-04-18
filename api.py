@@ -47,7 +47,8 @@ def load_models():
     global pipe, rmbg_net
     print("Loading models...")
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    dtype = torch.float16 if device == "cuda" else torch.float32
+    dtype = torch.float32 # Force float32 for stability
+    print(f"Using device: {device}, dtype: {dtype}") # Log the chosen dtype
 
     try:
         # Determine the path to the downloaded weights

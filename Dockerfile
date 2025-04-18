@@ -62,7 +62,12 @@ ENTRYPOINT ["/opt/nvidia/nvidia_entrypoint.sh"]
 
 # Install Miniconda
 ARG MINICONDA_VERSION=latest
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh -O miniconda.sh && \
+RUN case ${TARGETARCH} in \
+      amd64) ARCH=x86_64 ;; \
+      arm64) ARCH=aarch64 ;; \
+      *) echo "Unsupported architecture: ${TARGETARCH}"; exit 1 ;; \
+    esac && \
+    wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-${ARCH}.sh -O miniconda.sh && \
     /bin/bash miniconda.sh -b -p /opt/conda && \
     rm miniconda.sh && \
     # Add conda to PATH for subsequent RUN instructions in this build stage \

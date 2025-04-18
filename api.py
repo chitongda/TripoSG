@@ -57,11 +57,11 @@ def load_models():
             raise FileNotFoundError(f"TripoSR model not found at {model_load_path}. Please run download_models.py first.")
 
         print(f"Loading TripoSR model from local path: {model_load_path}")
+        # Load first, then move and cast dtype
         pipe = TripoSGPipeline.from_pretrained(
-            model_load_path, # Use the local path
-            torch_dtype=dtype,
+            model_load_path # Removed torch_dtype=dtype here
         )
-        pipe.to(device)
+        pipe.to(device, dtype=dtype) # Move and set dtype here
         print("TripoSR model loaded.")
 
         # Load RMBG model from its directory (PyTorch version)
@@ -72,7 +72,7 @@ def load_models():
 
         # Load BriaRMBG model using its from_pretrained method
         rmbg_net = BriaRMBG.from_pretrained(rmbg_model_dir)
-        rmbg_net.to(device)
+        rmbg_net.to(device, dtype=dtype) # Move and set dtype here
         rmbg_net.eval() # Set to evaluation mode
         print("RMBG model loaded.")
 

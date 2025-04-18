@@ -197,13 +197,38 @@ def run_inference(
 
     generator = torch.Generator(device=pipe.device).manual_seed(seed) # Use pipe.device
 
-    outputs = pipe(
+    # Run the pipeline
+    pipeline_output = pipe(
         image=img_pil,
+        # Add generator and other relevant parameters if needed
+        # generator=generator, # Example if seed control per-request is desired
+        # num_inference_steps=num_inference_steps, # Example
+        # guidance_scale=guidance_scale, # Example
     )
 
+    # Extract mesh data from the output object
+    # Assuming the structure is similar to app.py: output.samples[0]
+    if not hasattr(pipeline_output, 'samples') or not pipeline_output.samples:
+        raise RuntimeError("Pipeline output does not contain 'samples' or it is empty.")
+    
+    mesh_data = pipeline_output.samples[0]
+    
     # Ensure correct types for trimesh
-    vertices = outputs[0].astype(np.float64) # Use float64 for trimesh compatibility
-    faces = np.ascontiguousarray(outputs[1])
+    # Access vertices and faces from the extracted mesh_data
+    if not isinstance(mesh_data, (list, tuple)) or len(mesh_data) < 2:
+        raise RuntimeError(f"Unexpected format for mesh data inside samples. Expected list/tuple of length 2, got: {type(mesh_data)}")
+        
+    vertices_data = mesh_data[0]
+    faces_data = mesh_data[1]
+
+    # Check types before calling methods
+    if not hasattr(vertices_data, 'astype'):
+         raise TypeError(f"Vertices data type ({type(vertices_data)}) does not have 'astype' method.")
+    if not isinstance(faces_data, (np.ndarray, torch.Tensor)):
+         raise TypeError(f"Faces data type ({type(faces_data)}) is not suitable for np.ascontiguousarray.")
+
+    vertices = vertices_data.astype(np.float64) # Use float64 for trimesh compatibility
+    faces = np.ascontiguousarray(faces_data)
 
     # Check for degenerate faces (optional but good practice)
     if faces.shape[0] == 0:

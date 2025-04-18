@@ -93,6 +93,9 @@ RUN . ~/.bashrc && \
 # Set the default shell to bash and activate the conda environment for subsequent RUN commands
 SHELL ["conda", "run", "-n", "triposg_env", "/bin/bash", "-c"]
 
+# Update pip and setuptools first
+RUN pip install --upgrade pip setuptools wheel
+
 # Verify conda environment activation
 RUN echo "Conda environment:" && \
     conda info --envs && \
@@ -106,7 +109,7 @@ WORKDIR /app
 COPY . .
 
 # Install Python dependencies
-RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 RUN pip install -r requirements.txt
 
 # Install additional dependencies

@@ -3,4 +3,7 @@
 test_client.py
 app.py
 
+build-logs-*
+
+
 output_models/

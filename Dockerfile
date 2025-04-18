@@ -61,7 +61,7 @@ ENV NVIDIA_PRODUCT_NAME="CUDA"
 ENTRYPOINT ["/opt/nvidia/nvidia_entrypoint.sh"]
 
 # Install Miniconda
-A# Install Miniconda on x86 or ARM platforms
+# Install Miniconda on x86 or ARM platforms
 RUN arch=$(uname -m) && \
     if [ "$arch" = "x86_64" ]; then \
     MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"; \

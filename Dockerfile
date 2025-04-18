@@ -48,6 +48,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcusparse-12-8=${NV_LIBCUSPARSE_VERSION} \
     ${NV_LIBCUBLAS_PACKAGE} \
     ${NV_LIBNCCL_PACKAGE} \
+    wget \
+    coreutils \
     && rm -rf /var/lib/apt/lists/*
 
 # Keep apt from auto upgrading the cublas and nccl packages. See https://gitlab.com/nvidia/container-images/cuda/-/issues/88

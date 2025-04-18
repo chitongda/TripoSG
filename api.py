@@ -53,7 +53,6 @@ def load_models():
             torch_dtype=dtype,
         )
         pipe.to(device)
-        pipe.unet.to(memory_format=torch.channels_last)
         print("TripoSR model loaded.")
 
         # Adjust RMBG model path to use the downloaded location

@@ -2,3 +2,5 @@
 *.png
 test_client.py
 app.py
+
+output_models/

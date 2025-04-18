@@ -28,9 +28,33 @@ from triposg.pipelines.pipeline_triposg import TripoSGPipeline
 from image_process import prepare_image # Assuming image_process.py is in scripts/
 from briarmbg import BriaRMBG
 
+# --- ONNX Wrapper ---
+class ONNXCallableWrapper:
+    """Wraps an ONNX InferenceSession to make it callable."""
+    def __init__(self, session: onnxruntime.InferenceSession):
+        self._session = session
+        # Pre-fetch input/output names
+        self._input_name = self._session.get_inputs()[0].name
+        self._output_name = self._session.get_outputs()[0].name
+        print(f"ONNX Wrapper Initialized. Input: '{self._input_name}', Output: '{self._output_name}'")
+
+    def __call__(self, image_tensor: torch.Tensor) -> torch.Tensor:
+        """Performs inference when the wrapper object is called."""
+        # Ensure tensor is on CPU before converting to numpy
+        image_np = image_tensor.cpu().numpy()
+        # Run inference
+        result_onnx = self._session.run([self._output_name], {self._input_name: image_np})
+        # Convert result back to torch tensor
+        # Put the resulting tensor back on the original device (e.g., CUDA if available)
+        result_tensor = torch.from_numpy(result_onnx[0]).to(image_tensor.device)
+        return result_tensor
+
+# --- End ONNX Wrapper ---
+
+
 # Global variables for models and task statuses
 pipe: T.Optional[TripoSGPipeline] = None
-rmbg_net: T.Optional[BriaRMBG] = None
+rmbg_net: T.Optional[ONNXCallableWrapper] = None # Use the wrapper type
 task_statuses: T.Dict[str, T.Dict[str, T.Any]] = {} # Stores task status and results
 
 # --- Model Loading ---
@@ -64,8 +88,10 @@ def load_models():
         print(f"Loading RMBG ONNX model from: {rmbg_model_path}")
         # Load ONNX model using onnxruntime
         # Consider adding providers=['CUDAExecutionProvider', 'CPUExecutionProvider'] for GPU
-        rmbg_net = onnxruntime.InferenceSession(rmbg_model_path)
-        print("RMBG model loaded.")
+        # rmbg_net = onnxruntime.InferenceSession(rmbg_model_path) # Original loading
+        onnx_session = onnxruntime.InferenceSession(rmbg_model_path)
+        rmbg_net = ONNXCallableWrapper(onnx_session) # Apply the wrapper
+        print("RMBG model loaded and wrapped.")
 
     except ImportError as e:
         print(f"Error loading models: {e}. Please ensure all dependencies are installed.")

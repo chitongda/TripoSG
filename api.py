@@ -10,6 +10,7 @@ import typing as T # Use typing alias
 import io
 import uuid # Added for task IDs
 import asyncio # Added for background tasks
+import onnxruntime # Import ONNX runtime
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form, BackgroundTasks
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.background import BackgroundTask # Correct import for BackgroundTask
@@ -60,7 +61,10 @@ def load_models():
         rmbg_model_path = os.path.join(project_root, 'pretrained_weights', 'RMBG-1.4', 'onnx', 'model.onnx') # Correct path including 'onnx' subdir
         if not os.path.exists(rmbg_model_path):
              raise FileNotFoundError(f"RMBG model not found at {rmbg_model_path}. Please check the 'onnx' subdirectory in pretrained_weights/RMBG-1.4/.") # Updated error message
-        rmbg_net = BriaRMBG(onnx_path=rmbg_model_path)
+        print(f"Loading RMBG ONNX model from: {rmbg_model_path}")
+        # Load ONNX model using onnxruntime
+        # Consider adding providers=['CUDAExecutionProvider', 'CPUExecutionProvider'] for GPU
+        rmbg_net = onnxruntime.InferenceSession(rmbg_model_path)
         print("RMBG model loaded.")
 
     except ImportError as e:

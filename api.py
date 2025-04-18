@@ -56,11 +56,11 @@ def load_models():
         print("TripoSR model loaded.")
 
         # Adjust RMBG model path to use the downloaded location
-        rmbg_model_path = os.path.join(project_root, 'pretrained_weights', 'RMBG-1.4', 'model.onnx') # Adjusted path
-        # model_path = os.path.join(project_root, 'models', 'briarmbg-1.4.onnx') # Use relative path
+        # The onnx file is inside an 'onnx' subdirectory
+        rmbg_model_path = os.path.join(project_root, 'pretrained_weights', 'RMBG-1.4', 'onnx', 'model.onnx') # Correct path including 'onnx' subdir
         if not os.path.exists(rmbg_model_path):
-             raise FileNotFoundError(f"RMBG model not found at {rmbg_model_path}. Please run download_models.py first.")
-        rmbg_net = BriaRMBG(onnx_path=rmbg_model_path) # Use the correct path
+             raise FileNotFoundError(f"RMBG model not found at {rmbg_model_path}. Please check the 'onnx' subdirectory in pretrained_weights/RMBG-1.4/.") # Updated error message
+        rmbg_net = BriaRMBG(onnx_path=rmbg_model_path)
         print("RMBG model loaded.")
 
     except ImportError as e:

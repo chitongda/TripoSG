@@ -164,7 +164,7 @@ COPY . .
 # Install Python dependencies
 ENV CUDA_HOME=/usr/local/cuda
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-RUN pip install -r requirements.txt
+RUN CPLUS_INCLUDE_PATH=/usr/local/cuda/include pip install -r requirements.txt
 
 # Install additional dependencies
 RUN pip install fastapi uvicorn python-multipart onnxruntime

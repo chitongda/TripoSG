@@ -45,8 +45,16 @@ class ONNXCallableWrapper:
         # Run inference
         result_onnx = self._session.run([self._output_name], {self._input_name: image_np})
         # Convert result back to torch tensor
-        # Put the resulting tensor back on the original device (e.g., CUDA if available)
         result_tensor = torch.from_numpy(result_onnx[0]).to(image_tensor.device)
+
+        # --- Shape Correction ---
+        # Check if the shape is (1, H, W) and add a dimension to make it (1, 1, H, W)
+        # This ensures compatibility with the indexing [0][0] in image_process.py
+        if result_tensor.ndim == 3 and result_tensor.shape[0] == 1:
+            print(f"Adjusting ONNX output shape from {result_tensor.shape} to {result_tensor.unsqueeze(0).shape}")
+            result_tensor = result_tensor.unsqueeze(0)
+        # --- End Shape Correction ---
+
         return result_tensor
 
 # --- End ONNX Wrapper ---

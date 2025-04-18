@@ -10,7 +10,7 @@ import typing as T # Use typing alias
 import io
 import uuid # Added for task IDs
 import asyncio # Added for background tasks
-import onnxruntime # Import ONNX runtime
+# import onnxruntime # Removed ONNX runtime import
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form, BackgroundTasks
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.background import BackgroundTask # Correct import for BackgroundTask
@@ -20,49 +20,25 @@ import uvicorn
 project_root = os.path.dirname(os.path.abspath(__file__))
 # sys.path.append(project_root) # This might not be needed if running with uvicorn from root
 sys.path.append(os.path.join(project_root, "scripts")) # Ensure scripts dir is findable
-# Ensure triposg module is findable
-sys.path.append(project_root)
+# Ensure triposg module is findable (assuming it's installable or in root)
+# sys.path.append(project_root) # Maybe not needed if installed
+# Ensure briarmbg is findable (assuming it's installable or in root/scripts)
+# sys.path.append(os.path.join(project_root, "briarmbg")) # Example if needed
 
 
 from triposg.pipelines.pipeline_triposg import TripoSGPipeline
 from image_process import prepare_image # Assuming image_process.py is in scripts/
-from briarmbg import BriaRMBG
+from briarmbg import BriaRMBG # Import PyTorch RMBG model
 
-# --- ONNX Wrapper ---
-class ONNXCallableWrapper:
-    """Wraps an ONNX InferenceSession to make it callable."""
-    def __init__(self, session: onnxruntime.InferenceSession):
-        self._session = session
-        # Pre-fetch input/output names
-        self._input_name = self._session.get_inputs()[0].name
-        self._output_name = self._session.get_outputs()[0].name
-        print(f"ONNX Wrapper Initialized. Input: '{self._input_name}', Output: '{self._output_name}'")
-
-    def __call__(self, image_tensor: torch.Tensor) -> torch.Tensor:
-        """Performs inference when the wrapper object is called."""
-        # Ensure tensor is on CPU before converting to numpy
-        image_np = image_tensor.cpu().numpy()
-        # Run inference
-        result_onnx = self._session.run([self._output_name], {self._input_name: image_np})
-        # Convert result back to torch tensor
-        result_tensor = torch.from_numpy(result_onnx[0]).to(image_tensor.device)
-
-        # --- Shape Correction ---
-        # Check if the shape is (1, H, W) and add a dimension to make it (1, 1, H, W)
-        # This ensures compatibility with the indexing [0][0] in image_process.py
-        if result_tensor.ndim == 3 and result_tensor.shape[0] == 1:
-            print(f"Adjusting ONNX output shape from {result_tensor.shape} to {result_tensor.unsqueeze(0).shape}")
-            result_tensor = result_tensor.unsqueeze(0)
-        # --- End Shape Correction ---
-
-        return result_tensor
-
+# --- ONNX Wrapper REMOVED ---
+# class ONNXCallableWrapper:
+# ... (wrapper code removed) ...
 # --- End ONNX Wrapper ---
 
 
 # Global variables for models and task statuses
 pipe: T.Optional[TripoSGPipeline] = None
-rmbg_net: T.Optional[ONNXCallableWrapper] = None # Use the wrapper type
+rmbg_net: T.Optional[BriaRMBG] = None # Use BriaRMBG type hint
 task_statuses: T.Dict[str, T.Dict[str, T.Any]] = {} # Stores task status and results
 
 # --- Model Loading ---
@@ -88,18 +64,17 @@ def load_models():
         pipe.to(device)
         print("TripoSR model loaded.")
 
-        # Adjust RMBG model path to use the downloaded location
-        # The onnx file is inside an 'onnx' subdirectory
-        rmbg_model_path = os.path.join(project_root, 'pretrained_weights', 'RMBG-1.4', 'onnx', 'model.onnx') # Correct path including 'onnx' subdir
-        if not os.path.exists(rmbg_model_path):
-             raise FileNotFoundError(f"RMBG model not found at {rmbg_model_path}. Please check the 'onnx' subdirectory in pretrained_weights/RMBG-1.4/.") # Updated error message
-        print(f"Loading RMBG ONNX model from: {rmbg_model_path}")
-        # Load ONNX model using onnxruntime
-        # Consider adding providers=['CUDAExecutionProvider', 'CPUExecutionProvider'] for GPU
-        # rmbg_net = onnxruntime.InferenceSession(rmbg_model_path) # Original loading
-        onnx_session = onnxruntime.InferenceSession(rmbg_model_path)
-        rmbg_net = ONNXCallableWrapper(onnx_session) # Apply the wrapper
-        print("RMBG model loaded and wrapped.")
+        # Load RMBG model from its directory (PyTorch version)
+        rmbg_model_dir = os.path.join(project_root, 'pretrained_weights', 'RMBG-1.4')
+        if not os.path.isdir(rmbg_model_dir):
+             raise FileNotFoundError(f"RMBG model directory not found at {rmbg_model_dir}. Please ensure it exists.")
+        print(f"Loading RMBG PyTorch model from: {rmbg_model_dir}")
+
+        # Load BriaRMBG model using its from_pretrained method
+        rmbg_net = BriaRMBG.from_pretrained(rmbg_model_dir)
+        rmbg_net.to(device)
+        rmbg_net.eval() # Set to evaluation mode
+        print("RMBG model loaded.")
 
     except ImportError as e:
         print(f"Error loading models: {e}. Please ensure all dependencies are installed.")

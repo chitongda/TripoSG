@@ -162,8 +162,28 @@ def run_inference(
         print(f"Converting image from {image_input.mode} to RGB")
         image_input = image_input.convert('RGB')
 
-    img_pil = prepare_image(image_input, bg_color=np.array([1.0, 1.0, 1.0]), rmbg_net=rmbg_net)
-    print("Image prepared.")
+    # --- Modification Start: Save PIL image to temp file ---
+    temp_image_path = None
+    try:
+        # Create a temporary file to save the image
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_img_file:
+            temp_image_path = tmp_img_file.name
+            image_input.save(temp_image_path, format='PNG') # Save the PIL image
+            print(f"Saved input image temporarily to {temp_image_path}")
+
+        # Pass the path to prepare_image
+        img_pil = prepare_image(temp_image_path, bg_color=np.array([1.0, 1.0, 1.0]), rmbg_net=rmbg_net)
+        print("Image prepared from temporary file.")
+
+    finally:
+        # Clean up the temporary image file
+        if temp_image_path and os.path.exists(temp_image_path):
+            try:
+                os.remove(temp_image_path)
+                print(f"Cleaned up temporary image file: {temp_image_path}")
+            except OSError as e:
+                print(f"Error cleaning up temporary image file {temp_image_path}: {e}")
+    # --- Modification End ---
 
     generator = torch.Generator(device=pipe.device).manual_seed(seed) # Use pipe.device
 

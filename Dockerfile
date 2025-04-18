@@ -54,7 +54,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN apt-mark hold ${NV_LIBCUBLAS_PACKAGE_NAME} ${NV_LIBNCCL_PACKAGE_NAME}
 
 # Add entrypoint items
-COPY entrypoint.d/ /opt/nvidia/entrypoint.d/
 COPY nvidia_entrypoint.sh /opt/nvidia/
 ENV NVIDIA_PRODUCT_NAME="CUDA"
 ENTRYPOINT ["/opt/nvidia/nvidia_entrypoint.sh"]
@@ -105,9 +104,7 @@ RUN python download_models.py
 # Expose the port the app runs on
 EXPOSE 7860
 
-# Run the API
-# Reset ENTRYPOINT to remove NVIDIA's entrypoint
-ENTRYPOINT []
+# Run the API - The CMD will be passed as arguments to the ENTRYPOINT script
 CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "7860"]
 
 

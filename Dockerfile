@@ -87,7 +87,7 @@ ENV PATH=/opt/conda/bin:$PATH
 # Create and activate Conda environment
 # Need to source bashrc here to make conda command available after init
 RUN . ~/.bashrc && \
-    conda create -y --name triposg_env python=3.12 && \
+    conda create -y --name triposg_env python=3.11 && \
     conda clean -afy
 
 # Set the default shell to bash and activate the conda environment for subsequent RUN commands

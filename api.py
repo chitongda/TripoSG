@@ -41,18 +41,27 @@ def load_models():
     dtype = torch.float16 if device == "cuda" else torch.float32
 
     try:
+        # Determine the path to the downloaded weights
+        # Assumes download_models.py was run from the project root
+        model_load_path = os.path.join(project_root, "pretrained_weights", "TripoSG")
+        if not os.path.isdir(model_load_path):
+            raise FileNotFoundError(f"TripoSR model not found at {model_load_path}. Please run download_models.py first.")
+
+        print(f"Loading TripoSR model from local path: {model_load_path}")
         pipe = TripoSGPipeline.from_pretrained(
-            "stabilityai/TripoSR",
+            model_load_path, # Use the local path
             torch_dtype=dtype,
         )
         pipe.to(device)
         pipe.unet.to(memory_format=torch.channels_last)
         print("TripoSR model loaded.")
 
-        model_path = os.path.join(project_root, 'models', 'briarmbg-1.4.onnx') # Use relative path
-        if not os.path.exists(model_path):
-             raise FileNotFoundError(f"RMBG model not found at {model_path}. Please download it.")
-        rmbg_net = BriaRMBG(onnx_path=model_path)
+        # Adjust RMBG model path to use the downloaded location
+        rmbg_model_path = os.path.join(project_root, 'pretrained_weights', 'RMBG-1.4', 'model.onnx') # Adjusted path
+        # model_path = os.path.join(project_root, 'models', 'briarmbg-1.4.onnx') # Use relative path
+        if not os.path.exists(rmbg_model_path):
+             raise FileNotFoundError(f"RMBG model not found at {rmbg_model_path}. Please run download_models.py first.")
+        rmbg_net = BriaRMBG(onnx_path=rmbg_model_path) # Use the correct path
         print("RMBG model loaded.")
 
     except ImportError as e:

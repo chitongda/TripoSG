@@ -210,7 +210,7 @@ RUN pip install fastapi uvicorn python-multipart onnxruntime
 COPY start.sh /app/
 RUN chmod +x /app/start.sh
 
-# Download models
+# Model will be downloaded at container startup (see start.sh)
 
 # 声明容器将监听 7860 端口，用于外部访问容器内运行的应用
 # Expose the port the app runs on

@@ -170,7 +170,7 @@ RUN CPLUS_INCLUDE_PATH=/usr/local/cuda/include pip install -r requirements.txt
 RUN pip install fastapi uvicorn python-multipart onnxruntime
 
 # Download models
-RUN python download_models.py
+#RUN python download_models.py
 
 # Expose the port the app runs on
 EXPOSE 7860

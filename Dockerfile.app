@@ -51,5 +51,8 @@ VOLUME /app/models
 # 暴露端口
 EXPOSE 7860
 
+# 设置启动脚本权限
+RUN chmod +x start.sh
+
 # 运行 API
 CMD ["/bin/bash", "start.sh"]

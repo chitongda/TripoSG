@@ -93,9 +93,6 @@ RUN arch=$(uname -m) && \
 # 验证 Conda 安装
 RUN conda --version    
 
-# 继承基础镜像
-FROM your-base-image:1.0
-
 # 设置工作目录
 WORKDIR /app
 

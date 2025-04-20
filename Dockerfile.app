@@ -1,13 +1,6 @@
 # 继承基础镜像
 FROM cuda_miniconda_base:12.1.1-cudnn8-devel-ubuntu22.04
 
-# 安装系统依赖和构建工具
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    ninja-build \
-    cmake \
-    && rm -rf /var/lib/apt/lists/*
-
 # 设置工作目录
 WORKDIR /app
 

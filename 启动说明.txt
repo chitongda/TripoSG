@@ -1,0 +1,4 @@
+docker build -t cuda_miniconda_base:12.1.1-cudnn8-devel-ubuntu22.04 -f Dockerfile.base .
+docker build -f F:/TripoSG/Dockerfile.app -t triposg-app .
+docker run -v /e/AI/triposg:/app/models -p 7860:7860 triposg-app
+

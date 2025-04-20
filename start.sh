@@ -1,24 +1,32 @@
 #!/bin/bash
-# Download models with retry mechanism
-MAX_RETRIES=3
-RETRY_DELAY=5
 
-for ((i=1; i<=$MAX_RETRIES; i++)); do
-    echo "Downloading models (attempt $i/$MAX_RETRIES)..."
-    if python download_models.py; then
-        echo "Model download completed successfully"
-        break
-    else
-        echo "Model download failed, retrying in $RETRY_DELAY seconds..."
-        sleep $RETRY_DELAY
+# 设置模型目录
+MODEL_DIR=${MODEL_DIR:-"/app/models"}
+PRETRAINED_DIR="$MODEL_DIR/pretrained_weights"
+
+# 确保目录存在
+mkdir -p "$PRETRAINED_DIR"
+
+# 检查并下载模型文件
+if [ ! -d "$PRETRAINED_DIR/TripoSG" ] || [ ! -d "$PRETRAINED_DIR/RMBG-1.4" ]; then
+    echo "Downloading model files to $PRETRAINED_DIR..."
+    conda run -n triposg_env python download_models.py --output_dir "$MODEL_DIR" || {
+        echo "[ERROR] Model download failed"
+        exit 1
+    }
+    if [ $? -ne 0 ]; then
+        echo "[ERROR] Failed to download models"
+        exit 1
     fi
-done
-
-# Check final download status
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to download models after $MAX_RETRIES attempts"
-    exit 1
+    echo "Model download completed at $(date)"
+    echo "TripoSG model: $PRETRAINED_DIR/TripoSG"
+    echo "RMBG model: $PRETRAINED_DIR/RMBG-1.4"
+else
+    echo "Models already exist:"
+    echo "TripoSG: $PRETRAINED_DIR/TripoSG"
+    echo "RMBG: $PRETRAINED_DIR/RMBG-1.4"
 fi
 
-# Start API server
-exec uvicorn api:app --host 0.0.0.0 --port 7860
+# 启动应用
+echo "Starting TripoSG API server..."
+conda run --no-capture-output -n triposg_env uvicorn api:app --host 0.0.0.0 --port 7860
